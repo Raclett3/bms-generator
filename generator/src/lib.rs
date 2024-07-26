@@ -1,2 +1,2 @@
+pub mod chord;
 pub mod rng;
-pub mod rule;
