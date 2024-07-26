@@ -1,5 +1,6 @@
 use crate::rng::RNG;
 
+#[derive(PartialEq, Debug, Clone)]
 pub struct ChordDensity {
     density_seq: Vec<Vec<u64>>,
 }

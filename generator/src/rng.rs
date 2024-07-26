@@ -1,3 +1,4 @@
+#[derive(PartialEq, Debug, Clone)]
 pub struct RNG([u64; 2]);
 
 // Xoroshiro128+ seedable RNG
