@@ -1,4 +1,5 @@
 use generator::{
+    bms::chart_to_bms,
     chord::ChordDensity,
     generate::{generate_chart, ChartParams, LANES},
 };
@@ -33,7 +34,21 @@ fn main() {
         .as_millis() as u64;
     let params = ChartParams::new(chord_density, 222.22, 16, seed);
     let chart = generate_chart(&params);
-    for bar in chart.bars.iter().rev() {
-        print_bar(bar);
+
+    let is_bms_format = std::env::args().any(|arg| arg == "--bms");
+
+    if is_bms_format {
+        let mut bms = String::new();
+        let notes: usize = chart.bars.iter().flatten().map(|chord| chord.len()).sum();
+        let total = 200.0 + (notes as f32) * 0.3;
+        if chart_to_bms(&mut bms, &chart, "test", total).is_ok() {
+            println!("{bms}");
+        } else {
+            eprintln!("An error has occured generating BMS.");
+        }
+    } else {
+        for bar in chart.bars.iter().rev() {
+            print_bar(bar);
+        }
     }
 }
