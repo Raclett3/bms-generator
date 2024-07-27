@@ -25,6 +25,11 @@ struct Args {
     #[arg(long, default_value_t = format!("0,0,100,100,100"))]
     density: String,
 
+    /// Tolerance for jacks
+    /// (0 allows no jacks, 1 allows up to two consecutive notes, 0.4 allows them in 40% chance, and re-rolls otherwise.)
+    #[arg(long, default_value_t = 0.0)]
+    jack_tolerance: f32,
+
     #[arg(long)]
     seed: Option<u64>,
 }
@@ -37,7 +42,10 @@ fn seed_from_time() -> u64 {
 }
 
 fn parse_density(input: &str) -> Option<ChordDensity> {
-    let values: Vec<u64> = input.split(',').map(|x| x.parse().ok()).collect::<Option<_>>()?;
+    let values: Vec<u64> = input
+        .split(',')
+        .map(|x| x.parse().ok())
+        .collect::<Option<_>>()?;
     if values.len() != 5 {
         return None;
     }
@@ -57,7 +65,13 @@ fn main() {
     };
 
     let seed = args.seed.unwrap_or_else(seed_from_time);
-    let params = ChartParams::new(chord_density, args.bpm, args.bars, seed);
+    let params = ChartParams::new(
+        chord_density,
+        args.bpm,
+        args.bars,
+        args.jack_tolerance,
+        seed,
+    );
     let chart = generate_chart(&params);
 
     let file = File::create(args.filename).expect("Failed to open file");

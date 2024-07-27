@@ -8,15 +8,23 @@ pub struct ChartParams {
     chord_density: ChordDensity,
     bpm: f32,
     bars: usize,
+    jack_tolerance: f32,
     seed: u64,
 }
 
 impl ChartParams {
-    pub fn new(chord_density: ChordDensity, bpm: f32, bars: usize, seed: u64) -> Self {
+    pub fn new(
+        chord_density: ChordDensity,
+        bpm: f32,
+        bars: usize,
+        jack_tolerance: f32,
+        seed: u64,
+    ) -> Self {
         ChartParams {
             chord_density,
             bpm,
             bars,
+            jack_tolerance,
             seed,
         }
     }
@@ -42,27 +50,44 @@ impl Chart {
 struct NoteRandomizer {
     // TODO: 軸補正などを行うために weight を実装
     priority: Vec<usize>,
+    reroll_chance: Vec<f32>,
 }
 
 impl NoteRandomizer {
-    fn new(priority: Vec<usize>) -> Self {
+    fn new(priority: Vec<usize>, reroll_chance: Vec<f32>) -> Self {
         assert!(priority.len() == LANES);
-        NoteRandomizer { priority }
-    }
-
-    fn from_context(context: &GenerateContext) -> Self {
-        let Some(last_chord) = context.generated_chords.last() else {
-            return NoteRandomizer::new(vec![0; LANES]);
-        };
-
+        assert!(reroll_chance.len() == LANES);
         NoteRandomizer {
-            priority: (0..LANES as u8)
-                .map(|i| last_chord.contains(&i).into())
-                .collect(),
+            priority,
+            reroll_chance,
         }
     }
 
-    fn generate(&self, mut count: usize, rng: &mut RNG) -> Vec<u8> {
+    fn from_context(context: &GenerateContext, jack_tolerance: f32) -> Self {
+        let max_jacks = jack_tolerance.ceil() as usize;
+        let reroll_chance = (1.0 - jack_tolerance.fract()) % 1.0;
+
+        NoteRandomizer::new(
+            context
+                .ongoing_jacks
+                .iter()
+                .map(|&jacks| jacks.saturating_sub(max_jacks))
+                .collect(),
+            context
+                .ongoing_jacks
+                .iter()
+                .map(|&jacks| {
+                    if jacks == max_jacks {
+                        reroll_chance
+                    } else {
+                        0.0
+                    }
+                })
+                .collect(),
+        )
+    }
+
+    fn generate(&mut self, mut count: usize, rng: &mut RNG) -> Vec<u8> {
         let mut lanes_by_priority = Vec::new();
         let mut selected_notes: Vec<u8> = Vec::new();
 
@@ -74,21 +99,29 @@ impl NoteRandomizer {
             lanes_by_priority[priority].push(i as u8);
         }
 
-        for mut lanes in lanes_by_priority {
-            if count == 0 {
-                break;
-            }
+        let mut deferred_lanes = Vec::new();
 
-            if lanes.len() <= count {
-                count -= lanes.len();
-                selected_notes.append(&mut lanes);
-            } else {
-                for _ in 0..count {
-                    let idx = rng.next() as usize % lanes.len();
-                    selected_notes.push(lanes.swap_remove(idx));
+        'outer: for mut lanes in lanes_by_priority {
+            lanes.append(&mut deferred_lanes);
+
+            while !lanes.is_empty() {
+                if count == 0 {
+                    break 'outer;
                 }
 
-                break;
+                let idx = rng.next() as usize % lanes.len();
+                let lane = lanes.swap_remove(idx);
+
+                let reroll_chance = self.reroll_chance[lane as usize];
+                self.reroll_chance[lane as usize] = 0.0;
+
+                if reroll_chance > rng.next_f32() {
+                    deferred_lanes.push(lane);
+                    continue;
+                }
+
+                count -= 1;
+                selected_notes.push(lane);
             }
         }
 
@@ -101,6 +134,7 @@ impl NoteRandomizer {
 struct GenerateContext {
     generated_chords: Vec<Chord>,
     rng: RNG,
+    ongoing_jacks: Vec<usize>,
 }
 
 impl GenerateContext {
@@ -108,17 +142,29 @@ impl GenerateContext {
         GenerateContext {
             generated_chords: Vec::new(),
             rng: RNG::new_u64(seed),
+            ongoing_jacks: vec![0; LANES],
         }
+    }
+
+    fn push_chord(&mut self, chord: Chord) {
+        for (i, jacks) in self.ongoing_jacks.iter_mut().enumerate() {
+            if chord.contains(&(i as u8)) {
+                *jacks += 1;
+            } else {
+                *jacks = 0;
+            }
+        }
+        self.generated_chords.push(chord);
     }
 }
 
-fn generate_bar(chord_density: &ChordDensity, context: &mut GenerateContext) -> Vec<Chord> {
+fn generate_bar(chord_density: &ChordDensity, context: &mut GenerateContext, params: &ChartParams) -> Vec<Chord> {
     (0..CHORDS_PER_BAR)
         .map(|i| {
             let count = chord_density.generate_chord_density(i, &mut context.rng);
-            let randomizer = NoteRandomizer::from_context(context);
+            let mut randomizer = NoteRandomizer::from_context(context, params.jack_tolerance);
             let notes = randomizer.generate(count as usize, &mut context.rng);
-            context.generated_chords.push(notes.clone());
+            context.push_chord(notes.clone());
             notes
         })
         .collect()
@@ -129,7 +175,7 @@ pub fn generate_chart(params: &ChartParams) -> Chart {
     let mut chart = Chart::new(params.bpm);
 
     for _ in 0..params.bars {
-        let bar = generate_bar(&params.chord_density, &mut context);
+        let bar = generate_bar(&params.chord_density, &mut context, &params);
         chart.bars.push(bar);
     }
 
@@ -139,16 +185,16 @@ pub fn generate_chart(params: &ChartParams) -> Chart {
 #[cfg(test)]
 mod test {
     use super::{generate_chart, ChartParams, GenerateContext, NoteRandomizer};
-    use crate::{chord::ChordDensity, generate::CHORDS_PER_BAR};
+    use crate::{chord::ChordDensity, generate::{CHORDS_PER_BAR, LANES}};
     use approx::assert_relative_eq;
 
     #[test]
     fn test_note_randomizer() {
         let mut context = GenerateContext::new(123);
-        context.generated_chords.push(vec![0, 2, 4, 6]);
-        let randomizer = NoteRandomizer::from_context(&context);
+        context.push_chord(vec![0, 2, 4, 6]);
+        let mut randomizer = NoteRandomizer::from_context(&context, 0.0);
 
-        assert_eq!(randomizer, NoteRandomizer::new(vec![1, 0, 1, 0, 1, 0, 1]));
+        assert_eq!(randomizer, NoteRandomizer::new(vec![1, 0, 1, 0, 1, 0, 1], vec![0.0; LANES]));
 
         for _ in 0..1000 {
             assert_eq!(randomizer.generate(3, &mut context.rng), vec![1, 3, 5]);
@@ -168,6 +214,7 @@ mod test {
             chord_density: ChordDensity::new(vec![vec![300]]),
             bpm: 222.22,
             bars: 64,
+            jack_tolerance: 0.0,
             seed: 199024,
         };
 
@@ -183,6 +230,24 @@ mod test {
 
         for window in flatten_chart.windows(2) {
             assert!(window[0].iter().all(|x| !window[1].contains(x)));
+        }
+
+        let params = ChartParams {
+            chord_density: ChordDensity::new(vec![vec![300]]),
+            bpm: 222.22,
+            bars: 64,
+            jack_tolerance: 1.0,
+            seed: 199024,
+        };
+
+        let chart = generate_chart(&params);
+
+        let flatten_chart: Vec<_> = chart.bars.into_iter().flatten().collect();
+
+        for window in flatten_chart.windows(3) {
+            for lane in 0..7 {
+                assert!(!window.iter().all(|chord| chord.contains(&lane)));
+            }
         }
     }
 }

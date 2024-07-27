@@ -21,6 +21,16 @@ impl RNG {
 
         result
     }
+
+    pub fn next_f32(&mut self) -> f32 {
+        const FRACTION_BITS: usize = 23;
+        let precision = FRACTION_BITS + 1;
+        let scale = 1.0 / ((1u64 << precision) as f32);
+
+        let value = self.next();
+        let value = value >> (64 - precision);
+        scale * (value + 1) as f32
+    }
 }
 
 #[cfg(test)]
@@ -43,6 +53,20 @@ mod test {
         for _ in 0..1000000 {
             let n = rng.next();
             assert!(set.insert(n));
+        }
+    }
+
+    #[test]
+    fn test_rng_f32() {
+        let seed = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_millis() as u64;
+        let mut rng = RNG::new_u64(seed);
+
+        for _ in 0..10000 {
+            let value = rng.next_f32();
+            assert!((0.0..=1.0).contains(&value), "value = {value}");
         }
     }
 }
