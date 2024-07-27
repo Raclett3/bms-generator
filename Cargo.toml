@@ -1,4 +1,4 @@
 [workspace]
 
-members = ["generator"]
+members = ["generator", "keysound-gen"]
 resolver = "2"
