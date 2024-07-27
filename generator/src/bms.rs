@@ -2,7 +2,7 @@ use keysound_gen::note_names;
 
 use crate::generate::{Chart, LANES};
 use crate::keysound::{ChordRoot, ChordType};
-use std::fmt::Write;
+use std::io::Write;
 
 static LANE_MAPPING: [usize; 7] = [11, 12, 13, 14, 15, 18, 19];
 
@@ -27,11 +27,11 @@ pub fn to_bms_index(idx: usize) -> String {
 }
 
 pub fn chart_to_bms(
-    buf: &mut impl Write,
+    mut buf: impl Write,
     chart: &Chart,
     title: &str,
     total: f32,
-) -> std::fmt::Result {
+) -> std::io::Result<()> {
     writeln!(buf, "#PLAYER 1")?;
     writeln!(buf, "#TITLE {title}")?;
     writeln!(buf, "#TOTAL {total:.0}")?;
