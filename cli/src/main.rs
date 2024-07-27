@@ -1,4 +1,4 @@
-use clap::Parser;
+use clap::{error::ErrorKind, CommandFactory, Parser};
 use generator::{
     bms::chart_to_bms,
     chord::ChordDensity,
@@ -21,6 +21,10 @@ struct Args {
     #[arg(long, default_value_t = 16)]
     bars: usize,
 
+    /// Comma-separated density of the chart (percentage of 1/1, 1/2, 1/4, 1/8, 1/16 notes, respectively)
+    #[arg(long, default_value_t = format!("0,0,100,100,100"))]
+    density: String,
+
     #[arg(long)]
     seed: Option<u64>,
 }
@@ -32,9 +36,26 @@ fn seed_from_time() -> u64 {
         .as_millis() as u64
 }
 
+fn parse_density(input: &str) -> Option<ChordDensity> {
+    let values: Vec<u64> = input.split(',').map(|x| x.parse().ok()).collect::<Option<_>>()?;
+    if values.len() != 5 {
+        return None;
+    }
+    Some(ChordDensity::from_power_of_two(&values))
+}
+
 fn main() {
     let args = Args::parse();
-    let chord_density = ChordDensity::from_power_of_two(&[0, 0, 100, 100, 100]);
+
+    let Some(chord_density) = parse_density(&args.density) else {
+        let mut cmd = Args::command();
+        cmd.error(
+            ErrorKind::ValueValidation,
+            "--density must be up to 5 comma-separated integers.",
+        )
+        .exit();
+    };
+
     let seed = args.seed.unwrap_or_else(seed_from_time);
     let params = ChartParams::new(chord_density, args.bpm, args.bars, seed);
     let chart = generate_chart(&params);

@@ -54,7 +54,7 @@ bms-generator-cli [OPTIONS] <FILENAME>
 
 ## 実装済み / 実装予定の機能
 
-- [ ] 最低限の BMS 生成機能
+- [x] 最低限の BMS 生成機能
 
 - [ ] 縦連の許容度設定
 
