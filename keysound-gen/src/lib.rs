@@ -6,7 +6,7 @@ fn note_to_freq(note: i32) -> f32 {
 }
 
 pub fn note_names() -> Vec<String> {
-    (4..=5)
+    (3..=6)
         .flat_map(|octave| {
             [
                 "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B",
@@ -22,6 +22,6 @@ pub fn keysounds() -> Vec<(f32, String)> {
     note_names()
         .into_iter()
         .enumerate()
-        .map(|(i, note_name)| (note_to_freq(i as i32 - 9), note_name))
+        .map(|(i, note_name)| (note_to_freq(i as i32 + 3 - 24), note_name))
         .collect()
 }
