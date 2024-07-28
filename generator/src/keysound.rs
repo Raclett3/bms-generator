@@ -1,3 +1,7 @@
+use std::collections::HashMap;
+
+use keysound_gen::{drum_names, note_names};
+
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum ChordRoot {
     C,
@@ -56,6 +60,80 @@ impl ChordType {
         };
         indices.iter_mut().for_each(|x| *x += root_index);
         indices
+    }
+}
+
+fn all_keysounds() -> Vec<String> {
+    let notes = note_names().into_iter().map(|note| format!("s_s_{note}"));
+    let drums = drum_names().into_iter().map(|drum| format!("s_dr_{drum}"));
+    notes.chain(drums).collect()
+}
+
+pub trait KeySound {
+    fn sources(&self) -> &[String];
+    fn key_sound_idx(&mut self, bar_idx: usize, chord_pos: usize, chord_idx: usize) -> usize;
+    fn scratch_sound_idx(&mut self, bar_idx: usize, chord_pos: usize) -> usize;
+    fn bgm_sound_indices(&mut self, bar_idx: usize) -> Vec<Vec<Option<usize>>>;
+}
+
+pub struct ChordKeySound {
+    chords: Vec<(ChordRoot, ChordType)>,
+    sources: Vec<String>,
+    source_indices: HashMap<String, usize>,
+    notes: usize,
+}
+
+impl ChordKeySound {
+    pub fn new(chords: Vec<(ChordRoot, ChordType)>) -> Self {
+        let sources = all_keysounds();
+        let source_indices = sources.iter().cloned().zip(0..).collect();
+
+        ChordKeySound {
+            chords,
+            sources,
+            source_indices,
+            notes: 0,
+        }
+    }
+}
+
+impl KeySound for ChordKeySound {
+    fn sources(&self) -> &[String] {
+        &self.sources
+    }
+
+    fn key_sound_idx(&mut self, bar_idx: usize, _chord_pos: usize, _chord_idx: usize) -> usize {
+        let (chord_root, chord_type) = self.chords[bar_idx % self.chords.len()];
+        let chord_indices = chord_type.to_indices(chord_root);
+        let idx = chord_indices[self.notes % chord_indices.len()];
+        self.notes += 1;
+
+        idx
+    }
+
+    fn scratch_sound_idx(&mut self, _bar_idx: usize, _chord_pos: usize) -> usize {
+        self.source_indices["s_dr_cymbal"]
+    }
+
+    fn bgm_sound_indices(&mut self, _bar_idx: usize) -> Vec<Vec<Option<usize>>> {
+        let kick = self.source_indices["s_dr_kick"];
+        let snare = self.source_indices["s_dr_snare"];
+        let hihat = self.source_indices["s_dr_hihat"];
+
+        vec![
+            vec![Some(kick), Some(kick), Some(kick), Some(kick)],
+            vec![None, Some(snare), None, Some(snare)],
+            vec![
+                None,
+                Some(hihat),
+                None,
+                Some(hihat),
+                None,
+                Some(hihat),
+                None,
+                Some(hihat),
+            ],
+        ]
     }
 }
 

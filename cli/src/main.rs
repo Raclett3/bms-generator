@@ -3,6 +3,7 @@ use generator::{
     bms::chart_to_bms,
     chord::ChordDensity,
     generate::{generate_chart, ChartParams, Scatter},
+    keysound::{ChordKeySound, ChordRoot, ChordType},
 };
 use std::{
     fs::File,
@@ -62,6 +63,17 @@ fn parse_density(input: &str) -> Option<ChordDensity> {
     Some(ChordDensity::from_power_of_two(&values))
 }
 
+static CHORD_PROGRESSION: [(ChordRoot, ChordType); 8] = [
+    (ChordRoot::D, ChordType::Major),
+    (ChordRoot::A, ChordType::Major),
+    (ChordRoot::B, ChordType::Minor),
+    (ChordRoot::Fs, ChordType::Minor),
+    (ChordRoot::G, ChordType::Major),
+    (ChordRoot::D, ChordType::Major),
+    (ChordRoot::G, ChordType::Major),
+    (ChordRoot::A, ChordType::Major),
+];
+
 fn main() {
     let args = Args::parse();
 
@@ -109,7 +121,9 @@ fn main() {
         .sum();
     let total = f32::max(1000.0 - 1000000.0 / (1000.0 + notes as f32), 250.0);
 
-    if chart_to_bms(&file, &chart, "test", total).is_ok() {
+    let mut keysounds = ChordKeySound::new(CHORD_PROGRESSION.to_vec());
+
+    if chart_to_bms(&file, &chart, "test", total, &mut keysounds).is_ok() {
         println!("BMS の生成に成功しました。");
     } else {
         eprintln!("BMS の書き出しに失敗しました。");
