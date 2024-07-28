@@ -9,7 +9,7 @@ pub fn note_names() -> Vec<String> {
     (3..=6)
         .flat_map(|octave| {
             [
-                "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B",
+                "C", "Cs", "D", "Ds", "E", "F", "Fs", "G", "Gs", "A", "As", "B",
             ]
             .iter()
             .cloned()
