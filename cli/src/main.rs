@@ -2,7 +2,7 @@ use clap::{error::ErrorKind, CommandFactory, Parser};
 use generator::{
     bms::chart_to_bms,
     chord::ChordDensity,
-    generate::{generate_chart, ChartParams},
+    generate::{generate_chart, ChartParams, Scatter},
 };
 use std::{
     fs::File,
@@ -29,6 +29,16 @@ struct Args {
     /// (0 allows no jacks, 1 allows up to two consecutive notes, 0.4 allows them in 40% chance, and re-rolls otherwise.)
     #[arg(long, default_value_t = 0.0)]
     jack_tolerance: f32,
+
+    /// Strength of scattering (With stronger scattering, jacks or basses will appear less)
+    ///
+    /// This can also be set to a negative value, which produces more jacks and bass rushes than usual.
+    #[arg(long, default_value_t = 0.0)]
+    scatter: f32,
+
+    /// Decay rate of memory used for scattering (0.0 means super-short-term memory, and 1.0 means evarlasting memory)
+    #[arg(long, default_value_t = 0.5)]
+    scatter_decay_rate: f32,
 
     #[arg(long)]
     seed: Option<u64>,
@@ -64,12 +74,28 @@ fn main() {
         .exit();
     };
 
+    if !(0.0..=1.0).contains(&args.scatter_decay_rate) {
+        let mut cmd = Args::command();
+        cmd.error(
+            ErrorKind::ValueValidation,
+            "--scatter-decay-rate must be between 0 and 1.",
+        )
+        .exit();
+    };
+
+    let scatter = Scatter::new(
+        args.scatter.abs(),
+        args.scatter_decay_rate,
+        args.scatter < 0.0,
+    );
+
     let seed = args.seed.unwrap_or_else(seed_from_time);
     let params = ChartParams::new(
         chord_density,
         args.bpm,
         args.bars,
         args.jack_tolerance,
+        scatter,
         seed,
     );
     let chart = generate_chart(&params);
