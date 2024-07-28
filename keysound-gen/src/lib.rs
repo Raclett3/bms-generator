@@ -18,6 +18,13 @@ pub fn note_names() -> Vec<String> {
         .collect()
 }
 
+pub fn drum_names() -> Vec<String> {
+    ["kick", "snare", "hihat"]
+        .into_iter()
+        .map(|x| x.to_owned())
+        .collect()
+}
+
 pub fn keysounds() -> Vec<(f32, String)> {
     note_names()
         .into_iter()

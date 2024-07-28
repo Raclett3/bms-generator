@@ -1,8 +1,8 @@
-use keysound_gen::keysounds;
 use keysound_gen::riff::write_riff;
 use keysound_gen::synth::{sample, sinusoid, Envelope};
+use keysound_gen::{drum_names, keysounds};
 use std::{
-    fs::{create_dir_all, File},
+    fs::{copy, create_dir_all, File},
     path::PathBuf,
 };
 
@@ -14,9 +14,7 @@ fn main() {
     let sample_rate = 44100;
 
     for (freq, name) in keysounds() {
-        let filename = format!("s_{name}.wav");
-        let mut filepath = dirname.clone();
-        filepath.push(filename);
+        let filepath = dirname.join(format!("s_s_{name}.wav"));
 
         let file = File::create(&filepath).expect("Failed to open the file");
         let samples = sample(
@@ -27,5 +25,14 @@ fn main() {
             0.5,
         );
         write_riff(&file, sample_rate as u32, &samples).expect("Failed to write wave");
+    }
+
+    let drums_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("drums");
+
+    for drum_name in drum_names() {
+        let path_from = drums_path.join(format!("{drum_name}.wav"));
+        let path_to = dirname.join(format!("s_dr_{drum_name}.wav"));
+
+        copy(path_from, path_to).expect("Failed to copy the drum file");
     }
 }

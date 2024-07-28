@@ -1,4 +1,4 @@
-use keysound_gen::note_names;
+use keysound_gen::{drum_names, note_names};
 
 use crate::generate::{Chart, LANES};
 use crate::keysound::{ChordRoot, ChordType};
@@ -39,14 +39,43 @@ pub fn chart_to_bms(
     writeln!(buf, "#PLAYLEVEL 1")?;
     writeln!(buf, "#RANK 3")?;
 
-    for (i, note_name) in note_names().into_iter().enumerate() {
-        writeln!(buf, "#WAV{} s_{note_name}.wav", to_bms_index(i))?;
+    let note_names = note_names();
+    let drum_names = drum_names();
+
+    for (i, note_name) in note_names.iter().enumerate() {
+        writeln!(buf, "#WAV{} s_s_{note_name}.wav", to_bms_index(i))?;
     }
+
+    for (i, drum_name) in (note_names.len()..).zip(drum_names.iter()) {
+        writeln!(buf, "#WAV{} s_dr_{drum_name}.wav", to_bms_index(i))?;
+    }
+
+    let kick = drum_names.iter().position(|x| x == "kick").unwrap();
+    let snare = drum_names.iter().position(|x| x == "snare").unwrap();
+    let hihat = drum_names.iter().position(|x| x == "hihat").unwrap();
+
+    let drum_patterns: [&[_]; 3] = [
+        &[Some(kick), Some(kick), Some(kick), Some(kick)],
+        &[None, Some(snare), None, Some(snare)],
+        &[None, Some(hihat), None, Some(hihat), None, Some(hihat), None, Some(hihat)],
+    ];
 
     for (bar_idx, bar) in chart.bars.iter().enumerate().take(999) {
         let (chord_root, chord_type) = CHORD_PROGRESSION[bar_idx % 8];
         let keysound_chord = chord_type.to_indices(chord_root);
         let mut keysound_idx = 0;
+
+        for drum_pattern in drum_patterns.into_iter() {
+            write!(buf, "#{:03}01:", bar_idx + 1)?;
+            for drum in drum_pattern {
+                if let Some(drum) = drum {
+                    write!(buf, "{}", to_bms_index(drum + note_names.len()))?;
+                } else {
+                    write!(buf, "00")?;
+                }
+            }
+            writeln!(buf)?;
+        }
 
         let mut lanes = vec![vec![None; bar.len()]; LANES];
         for (i, chord) in bar.iter().enumerate() {
