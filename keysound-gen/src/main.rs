@@ -1,5 +1,5 @@
 use keysound_gen::riff::write_riff;
-use keysound_gen::synth::{sample, sinusoid, Envelope};
+use keysound_gen::synth::{sample, triangle, Envelope};
 use keysound_gen::{drum_names, keysounds};
 use std::io::BufWriter;
 use std::{
@@ -20,7 +20,7 @@ fn main() {
         let file = File::create(&filepath).expect("Failed to open the file");
         let mut bufwriter = BufWriter::new(&file);
         let samples = sample(
-            sinusoid(freq),
+            triangle(freq),
             0.1,
             &Envelope::new(0.0, 0.02, 0.8, 0.01),
             sample_rate as f32,

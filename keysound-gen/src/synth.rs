@@ -1,7 +1,13 @@
 use std::f32::consts::PI;
 
+/*
 pub fn sinusoid(frequency: f32) -> impl Fn(f32) -> f32 {
     move |second: f32| f32::sin(second * frequency * 2.0 * PI)
+}
+*/
+
+pub fn triangle(frequency: f32) -> impl Fn(f32) -> f32 {
+    move |second: f32| f32::asin(f32::sin(second * frequency * 2.0 * PI))
 }
 
 fn f32_sample_to_i16(sample: f32) -> i16 {
