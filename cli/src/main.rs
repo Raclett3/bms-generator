@@ -101,7 +101,12 @@ fn main() {
     let chart = generate_chart(&params);
 
     let file = File::create(args.filename).expect("Failed to open file");
-    let notes: usize = chart.bars.iter().flatten().map(|chord| chord.len()).sum();
+    let notes: usize = chart
+        .bars
+        .iter()
+        .flatten()
+        .map(|chord| chord.lanes.len())
+        .sum();
     let total = f32::max(1000.0 - 1000000.0 / (1000.0 + notes as f32), 250.0);
 
     if chart_to_bms(&file, &chart, "test", total).is_ok() {

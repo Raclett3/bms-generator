@@ -19,7 +19,7 @@ pub fn note_names() -> Vec<String> {
 }
 
 pub fn drum_names() -> Vec<String> {
-    ["kick", "snare", "hihat"]
+    ["kick", "snare", "hihat", "cymbal"]
         .into_iter()
         .map(|x| x.to_owned())
         .collect()

@@ -53,6 +53,7 @@ pub fn chart_to_bms(
     let kick = drum_names.iter().position(|x| x == "kick").unwrap();
     let snare = drum_names.iter().position(|x| x == "snare").unwrap();
     let hihat = drum_names.iter().position(|x| x == "hihat").unwrap();
+    let cymbal = drum_names.iter().position(|x| x == "cymbal").unwrap(); 
 
     let drum_patterns: [&[_]; 3] = [
         &[Some(kick), Some(kick), Some(kick), Some(kick)],
@@ -79,7 +80,7 @@ pub fn chart_to_bms(
 
         let mut lanes = vec![vec![None; bar.len()]; LANES];
         for (i, chord) in bar.iter().enumerate() {
-            for lane in chord.iter().copied() {
+            for lane in chord.lanes.iter().copied() {
                 lanes[lane as usize][i] = Some(keysound_chord[keysound_idx]);
                 keysound_idx = (keysound_idx + 1) % keysound_chord.len();
             }
@@ -97,6 +98,16 @@ pub fn chart_to_bms(
             }
             writeln!(buf)?;
         }
+
+        write!(buf, "#{:03}16:", bar_idx + 1)?;
+        for chord in bar.iter() {
+            if chord.scratch {
+                write!(buf, "{}", to_bms_index(cymbal + note_names.len()))?;
+            } else {
+                write!(buf, "00")?;
+            }
+        }
+
         writeln!(buf)?;
     }
 

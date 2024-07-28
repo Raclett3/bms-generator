@@ -49,7 +49,21 @@ impl ChartParams {
     }
 }
 
-type Chord = Vec<u8>;
+#[derive(Debug, Clone, PartialEq)]
+pub struct Chord {
+    pub lanes: Vec<u8>,
+    pub scratch: bool,
+}
+
+impl Chord {
+    fn new(lanes: Vec<u8>, scratch: bool) -> Self {
+        Chord { lanes, scratch }
+    }
+
+    fn contains(&self, lane: u8) -> bool {
+        self.lanes.contains(&lane)
+    }
+}
 
 pub struct Chart {
     pub bpm: f32,
@@ -187,13 +201,13 @@ impl<'a> GenerateContext<'a> {
         for (i, bias) in self.bias.iter_mut().enumerate() {
             *bias = *bias * self.params.scatter.decay;
 
-            if chord.contains(&(i as u8)) {
+            if chord.contains(i as u8) {
                 *bias += self.params.scatter.strength;
             }
         }
 
         for (i, jacks) in self.ongoing_jacks.iter_mut().enumerate() {
-            if chord.contains(&(i as u8)) {
+            if chord.contains(i as u8) {
                 *jacks += 1;
             } else {
                 *jacks = 0;
@@ -217,14 +231,19 @@ impl<'a> GenerateContext<'a> {
     }
 }
 
-fn generate_bar(chord_density: &ChordDensity, context: &mut GenerateContext) -> Vec<Chord> {
+fn generate_bar(
+    bar_idx: usize,
+    chord_density: &ChordDensity,
+    context: &mut GenerateContext,
+) -> Vec<Chord> {
     (0..CHORDS_PER_BAR)
         .map(|i| {
             let count = chord_density.generate_chord_density(i, &mut context.rng);
             let mut randomizer = NoteRandomizer::from_context(context);
             let notes = randomizer.generate(count as usize, &mut context.rng);
-            context.push_chord(notes.clone());
-            notes
+            let chord = Chord::new(notes, bar_idx % 8 == 0 && i == 0);
+            context.push_chord(chord.clone());
+            chord
         })
         .collect()
 }
@@ -233,8 +252,8 @@ pub fn generate_chart(params: &ChartParams) -> Chart {
     let mut context = GenerateContext::new(params.seed, params);
     let mut chart = Chart::new(params.bpm);
 
-    for _ in 0..params.bars {
-        let bar = generate_bar(&params.chord_density, &mut context);
+    for bar_idx in 0..params.bars {
+        let bar = generate_bar(bar_idx, &params.chord_density, &mut context);
         chart.bars.push(bar);
     }
 
@@ -246,7 +265,7 @@ mod test {
     use super::{generate_chart, ChartParams, GenerateContext, NoteRandomizer};
     use crate::{
         chord::ChordDensity,
-        generate::{Scatter, CHORDS_PER_BAR, LANES},
+        generate::{Chord, Scatter, CHORDS_PER_BAR, LANES},
     };
     use approx::assert_relative_eq;
 
@@ -262,22 +281,22 @@ mod test {
         };
 
         let mut context = GenerateContext::new(123, &params);
-        context.push_chord(vec![0, 2, 4, 6]);
+        context.push_chord(Chord::new(vec![0, 2, 4, 6], false));
         assert_relative_eq!(
             context.bias.as_slice(),
             [1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0].as_slice()
         );
-        context.push_chord(vec![1, 2, 3, 4, 5]);
+        context.push_chord(Chord::new(vec![1, 2, 3, 4, 5], false));
         assert_relative_eq!(
             context.bias.as_slice(),
             [0.5, 1.0, 1.5, 1.0, 1.5, 1.0, 0.5].as_slice()
         );
-        context.push_chord(vec![0, 6]);
+        context.push_chord(Chord::new(vec![0, 6], false));
         assert_relative_eq!(
             context.bias.as_slice(),
             [1.25, 0.5, 0.75, 0.5, 0.75, 0.5, 1.25].as_slice()
         );
-        context.push_chord(vec![3]);
+        context.push_chord(Chord::new(vec![3], false));
         assert_relative_eq!(
             context.bias.as_slice(),
             [0.625, 0.25, 0.375, 1.25, 0.375, 0.25, 0.625].as_slice()
@@ -328,7 +347,7 @@ mod test {
         };
 
         let mut context = GenerateContext::new(123, &params);
-        context.push_chord(vec![0, 2, 4, 6]);
+        context.push_chord(Chord::new(vec![0, 2, 4, 6], false));
         let mut randomizer = NoteRandomizer::from_context(&context);
 
         assert_eq!(
@@ -374,7 +393,7 @@ mod test {
         let flatten_chart: Vec<_> = chart.bars.into_iter().flatten().collect();
 
         for window in flatten_chart.windows(2) {
-            assert!(window[0].iter().all(|x| !window[1].contains(x)));
+            assert!(window[0].lanes.iter().all(|&x| !window[1].contains(x)));
         }
 
         let params = ChartParams {
@@ -392,7 +411,7 @@ mod test {
 
         for window in flatten_chart.windows(3) {
             for lane in 0..7 {
-                assert!(!window.iter().all(|chord| chord.contains(&lane)));
+                assert!(!window.iter().all(|chord| chord.contains(lane)));
             }
         }
     }
