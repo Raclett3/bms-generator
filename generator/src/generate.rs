@@ -82,18 +82,18 @@ impl Chart {
 #[derive(PartialEq, Debug, Clone)]
 struct NoteRandomizer {
     weight: Vec<f32>,
-    priority: Vec<usize>,
-    reroll_chance: Vec<f32>,
+    priorities: Vec<usize>,
+    reroll_chances: Vec<f32>,
 }
 
 impl NoteRandomizer {
-    fn new(priority: Vec<usize>, reroll_chance: Vec<f32>, weight: Vec<f32>) -> Self {
-        assert!(priority.len() == LANES);
-        assert!(reroll_chance.len() == LANES);
+    fn new(priorities: Vec<usize>, reroll_chances: Vec<f32>, weight: Vec<f32>) -> Self {
+        assert!(priorities.len() == LANES);
+        assert!(reroll_chances.len() == LANES);
         NoteRandomizer {
             weight,
-            priority,
-            reroll_chance,
+            priorities,
+            reroll_chances,
         }
     }
 
@@ -102,32 +102,31 @@ impl NoteRandomizer {
         let max_jacks = jack_tolerance.ceil() as usize;
         let reroll_chance = (1.0 - jack_tolerance.fract()) % 1.0;
 
-        NoteRandomizer::new(
-            context
-                .ongoing_jacks
-                .iter()
-                .map(|&jacks| jacks.saturating_sub(max_jacks))
-                .collect(),
-            context
-                .ongoing_jacks
-                .iter()
-                .map(|&jacks| {
-                    if jacks == max_jacks {
-                        reroll_chance
-                    } else {
-                        0.0
-                    }
-                })
-                .collect(),
-            context.bias_to_weight(),
-        )
+        let priorities = context
+            .ongoing_jacks
+            .iter()
+            .map(|&jacks| jacks.saturating_sub(max_jacks))
+            .collect();
+        let reroll_chances = context
+            .ongoing_jacks
+            .iter()
+            .map(|&jacks| {
+                if jacks == max_jacks {
+                    reroll_chance
+                } else {
+                    0.0
+                }
+            })
+            .collect();
+
+        NoteRandomizer::new(priorities, reroll_chances, context.bias_to_weight())
     }
 
     fn generate(&mut self, mut count: usize, rng: &mut RNG) -> Vec<u8> {
         let mut lanes_by_priority = Vec::new();
         let mut selected_notes: Vec<u8> = Vec::new();
 
-        for (i, priority) in self.priority.iter().copied().enumerate() {
+        for (i, priority) in self.priorities.iter().copied().enumerate() {
             if lanes_by_priority.len() < priority + 1 {
                 lanes_by_priority.resize(priority + 1, Vec::new());
             }
@@ -159,8 +158,8 @@ impl NoteRandomizer {
                     .unwrap_or((lanes.len() - 1, 0.0));
                 let lane = lanes.swap_remove(idx);
 
-                let reroll_chance = self.reroll_chance[lane as usize];
-                self.reroll_chance[lane as usize] = 0.0;
+                let reroll_chance = self.reroll_chances[lane as usize];
+                self.reroll_chances[lane as usize] = 0.0;
 
                 if reroll_chance > rng.next_f32() {
                     deferred_lanes.push(lane);
