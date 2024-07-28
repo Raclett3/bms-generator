@@ -8,7 +8,7 @@ impl RNG {
     }
 
     pub fn new_u64(seed: u64) -> Self {
-        RNG([seed, 0])
+        RNG([0xC0BEBEEF, seed])
     }
 
     pub fn next(&mut self) -> u64 {
