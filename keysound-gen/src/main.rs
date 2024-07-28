@@ -1,6 +1,7 @@
 use keysound_gen::riff::write_riff;
 use keysound_gen::synth::{sample, sinusoid, Envelope};
 use keysound_gen::{drum_names, keysounds};
+use std::io::BufWriter;
 use std::{
     fs::{copy, create_dir_all, File},
     path::PathBuf,
@@ -17,6 +18,7 @@ fn main() {
         let filepath = dirname.join(format!("s_s_{name}.wav"));
 
         let file = File::create(&filepath).expect("Failed to open the file");
+        let mut bufwriter = BufWriter::new(&file);
         let samples = sample(
             sinusoid(freq),
             0.1,
@@ -24,7 +26,7 @@ fn main() {
             sample_rate as f32,
             0.5,
         );
-        write_riff(&file, sample_rate as u32, &samples).expect("Failed to write wave");
+        write_riff(&mut bufwriter, sample_rate as u32, &samples).expect("Failed to write wave");
     }
 
     let drums_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("drums");
