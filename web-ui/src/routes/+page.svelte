@@ -39,6 +39,7 @@
         const resultBms = generate_bms(
             bars,
             bpm,
+            "Auto Generated",
             jackTolerance,
             chordDensityArray,
             scatter,

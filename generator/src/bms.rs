@@ -19,11 +19,15 @@ pub fn chart_to_bms(
     mut buf: impl Write,
     chart: &Chart,
     title: &str,
+    genre: &str,
+    artist: &str,
     total: f32,
     keysounds: &mut impl KeySound,
 ) -> std::io::Result<()> {
     writeln!(buf, "#PLAYER 1")?;
     writeln!(buf, "#TITLE {title}")?;
+    writeln!(buf, "#GENRE {genre}")?;
+    writeln!(buf, "#ARTIST {artist}")?;
     writeln!(buf, "#TOTAL {total:.0}")?;
     writeln!(buf, "#BPM {:.2}", chart.bpm)?;
     writeln!(buf, "#PLAYLEVEL 1")?;
