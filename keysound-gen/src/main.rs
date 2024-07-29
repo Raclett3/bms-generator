@@ -37,4 +37,16 @@ fn main() {
 
         copy(path_from, path_to).expect("Failed to copy the drum file");
     }
+
+    let filepath = dirname.join(format!("s_x_silence.wav"));
+    let file = File::create(&filepath).expect("Failed to open the file");
+    let mut bufwriter = BufWriter::new(&file);
+    let samples = sample(
+        |_| 0.0,
+        62.3,
+        &Envelope::new(0.0, 0.0, 0.0, 0.0),
+        sample_rate as f32,
+        0.0,
+    );
+    write_riff(&mut bufwriter, sample_rate as u32, &samples).expect("Failed to write wave");
 }

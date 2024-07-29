@@ -43,7 +43,9 @@ pub fn chart_to_bms(
     for (i, drum_name) in (note_names.len()..).zip(drum_names.iter()) {
         writeln!(buf, "#WAV{} s_dr_{drum_name}.wav", to_bms_index(i))?;
     }
+    writeln!(buf, "#WAVXX s_x_silence.wav")?;
 
+    writeln!(buf, "#00101:XX")?;
     for (bar_idx, bar) in chart.bars.iter().enumerate().take(999) {
         for bgm_lane in keysounds.bgm_sound_indices(bar_idx).into_iter() {
             write!(buf, "#{:03}01:", bar_idx + 1)?;
