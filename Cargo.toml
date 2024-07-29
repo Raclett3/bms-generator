@@ -1,4 +1,5 @@
 [workspace]
 
-members = [ "cli","generator", "keysound-gen"]
+members = [ "cli", "generator", "keysound-gen" ]
+exclude = [ "web-ui/wasm" ]
 resolver = "2"
