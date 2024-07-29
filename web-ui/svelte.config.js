@@ -12,6 +12,9 @@ const config = {
         alias: {
             $wasm: "./wasm/pkg",
         },
+        paths: {
+            base: process.argv.includes("dev") ? "" : "/bms-generator",
+        },
     },
 };
 
