@@ -1,6 +1,6 @@
 <script lang="ts">
     import { base } from "$app/paths";
-    import { BmsParams, generate_bms } from "$wasm";
+    import { BmsParams, data_uri, generate_bms } from "$wasm";
 
     let bars = 16;
     let bpm = 150;
@@ -29,8 +29,8 @@
         document.body.removeChild(link);
     }
 
-    function dataURI(content: string, mime = "application/octet-stream") {
-        return `data:${mime};base64,${btoa(content)}`;
+    function dataURI(content: Uint8Array, mime = "application/octet-stream") {
+        return data_uri(content, mime);
     }
 
     function onClick() {

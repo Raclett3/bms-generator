@@ -5,6 +5,7 @@ use generator::{
     keysound::{ChordKeySound, ChordRoot, ChordType},
 };
 use wasm_bindgen::prelude::*;
+use base64::prelude::*;
 
 static CHORD_PROGRESSION: [(ChordRoot, ChordType); 8] = [
     (ChordRoot::D, ChordType::Major),
@@ -56,7 +57,12 @@ impl BmsParams {
 }
 
 #[wasm_bindgen]
-pub fn generate_bms(params: &BmsParams) -> Option<String> {
+pub fn data_uri(content: &[u8], mime: &str) -> String {
+    format!("data:{mime};base64,{}", BASE64_STANDARD.encode(content))
+}
+
+#[wasm_bindgen]
+pub fn generate_bms(params: &BmsParams) -> Option<Vec<u8>> {
     let chord_density = ChordDensity::from_power_of_two(&params.chord_density);
 
     let scatter = Scatter::new(
@@ -84,7 +90,7 @@ pub fn generate_bms(params: &BmsParams) -> Option<String> {
     let total = f32::max(1000.0 - 1000000.0 / (1000.0 + notes as f32), 250.0);
     let duration = 240.0 / chart.bpm * chart.bars.len() as f32;
     let density = notes as f32 / duration;
-    let genre = format!("{density:.02} notes/s");
+    let genre = format!("密度: {density:.02} notes/s");
     let artist = format!(
         "jacks: {:.01}, scatter: {:.01}, seed: {:?}",
         params.jack_tolerance, params.scatter_strength, params.seed,
@@ -105,7 +111,7 @@ pub fn generate_bms(params: &BmsParams) -> Option<String> {
     )
     .is_ok()
     {
-        unsafe { Some(String::from_utf8_unchecked(bms)) }
+        Some(bms)
     } else {
         None
     }

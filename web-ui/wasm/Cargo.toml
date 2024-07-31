@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+base64 = "0.22.1"
 generator = { version = "0.1.0", path = "../../generator" }
 wasm-bindgen = "0.2.92"
 
