@@ -18,26 +18,62 @@ static CHORD_PROGRESSION: [(ChordRoot, ChordType); 8] = [
 ];
 
 #[wasm_bindgen]
-pub fn generate_bms(
+pub struct BmsParams {
     bars: usize,
     bpm: f32,
-    title: &str,
+    title: String,
     jack_tolerance: f32,
-    chord_density: &[u64],
+    chord_density: Vec<u64>,
     scatter_strength: f32,
     scatter_decay_rate: f32,
     seed: u64,
-) -> Option<String> {
-    let chord_density = ChordDensity::from_power_of_two(chord_density);
+}
+
+#[wasm_bindgen]
+impl BmsParams {
+    #[wasm_bindgen(constructor)]
+    pub fn new(
+        bars: usize,
+        bpm: f32,
+        title: String,
+        jack_tolerance: f32,
+        chord_density: Vec<u64>,
+        scatter_strength: f32,
+        scatter_decay_rate: f32,
+        seed: u64,
+    ) -> Self {
+        BmsParams {
+            bars,
+            bpm,
+            title,
+            jack_tolerance,
+            chord_density,
+            scatter_strength,
+            scatter_decay_rate,
+            seed,
+        }
+    }
+}
+
+#[wasm_bindgen]
+pub fn generate_bms(params: &BmsParams) -> Option<String> {
+    let chord_density = ChordDensity::from_power_of_two(&params.chord_density);
 
     let scatter = Scatter::new(
-        scatter_strength.abs(),
-        scatter_decay_rate,
-        scatter_strength < 0.0,
+        params.scatter_strength.abs(),
+        params.scatter_decay_rate,
+        params.scatter_strength < 0.0,
     );
 
-    let params = ChartParams::new(chord_density, bpm, bars, jack_tolerance, scatter, seed);
-    let chart = generate_chart(&params);
+    let chart_params = ChartParams::new(
+        chord_density,
+        params.bpm,
+        params.bars,
+        params.jack_tolerance,
+        scatter,
+        params.seed,
+    );
+    let chart = generate_chart(&chart_params);
 
     let notes: usize = chart
         .bars
@@ -49,8 +85,10 @@ pub fn generate_bms(
     let duration = 240.0 / chart.bpm * chart.bars.len() as f32;
     let density = notes as f32 / duration;
     let genre = format!("{density:.02} notes/s");
-    let artist =
-        format!("jacks: {jack_tolerance:.01}, scatter: {scatter_strength:.01}, seed: {seed:?}");
+    let artist = format!(
+        "jacks: {:.01}, scatter: {:.01}, seed: {:?}",
+        params.jack_tolerance, params.scatter_strength, params.seed,
+    );
 
     let mut keysounds = ChordKeySound::new(CHORD_PROGRESSION.to_vec());
 
@@ -59,7 +97,7 @@ pub fn generate_bms(
     if chart_to_bms(
         &mut bms,
         &chart,
-        title,
+        &params.title,
         &genre,
         &artist,
         total,

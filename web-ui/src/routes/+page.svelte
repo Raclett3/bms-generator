@@ -1,6 +1,6 @@
 <script lang="ts">
     import { base } from "$app/paths";
-    import { generate_bms } from "$wasm";
+    import { BmsParams, generate_bms } from "$wasm";
 
     let bars = 16;
     let bpm = 150;
@@ -36,7 +36,7 @@
     function onClick() {
         const chordDensityArray = BigUint64Array.from(chordDensity.map(BigInt));
         const seed = getSeed();
-        const resultBms = generate_bms(
+        const params = new BmsParams(
             bars,
             bpm,
             "Auto Generated",
@@ -46,6 +46,8 @@
             scatterDecayRate,
             seed,
         );
+        const resultBms = generate_bms(params);
+        params.free();
 
         if (resultBms === undefined) {
             alert("BMS の生成に失敗しました。");
