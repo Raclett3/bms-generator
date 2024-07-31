@@ -1,5 +1,4 @@
 use encoding_rs::SHIFT_JIS;
-use keysound_gen::{drum_names, note_names};
 
 use crate::generate::{Chart, LANES};
 use crate::keysound::KeySound;
@@ -34,19 +33,10 @@ pub fn chart_to_bms(
     writeln!(buf, "#PLAYLEVEL 1")?;
     writeln!(buf, "#RANK 3")?;
 
-    let note_names = note_names();
-    let drum_names = drum_names();
-
-    for (i, note_name) in note_names.iter().enumerate() {
-        writeln!(buf, "#WAV{} s_s_{note_name}.wav", to_bms_index(i))?;
+    for (i, source) in keysounds.sources().iter().enumerate() {
+        writeln!(buf, "#WAV{} {}.wav", to_bms_index(i), source.name())?;
     }
 
-    for (i, drum_name) in (note_names.len()..).zip(drum_names.iter()) {
-        writeln!(buf, "#WAV{} s_dr_{drum_name}.wav", to_bms_index(i))?;
-    }
-    writeln!(buf, "#WAVXX s_x_silence.wav")?;
-
-    writeln!(buf, "#00101:XX")?;
     for (bar_idx, bar) in chart.bars.iter().enumerate().take(999) {
         for bgm_lane in keysounds.bgm_sound_indices(bar_idx).into_iter() {
             write!(buf, "#{:03}01:", bar_idx + 1)?;

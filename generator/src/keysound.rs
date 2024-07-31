@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use keysound_gen::{drum_names, note_names};
+use keysound_gen::{keysounds, KeySoundSource};
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum ChordRoot {
@@ -63,14 +63,8 @@ impl ChordType {
     }
 }
 
-fn all_keysounds() -> Vec<String> {
-    let notes = note_names().into_iter().map(|note| format!("s_s_{note}"));
-    let drums = drum_names().into_iter().map(|drum| format!("s_dr_{drum}"));
-    notes.chain(drums).collect()
-}
-
 pub trait KeySound {
-    fn sources(&self) -> &[String];
+    fn sources(&self) -> &[KeySoundSource];
     fn key_sound_idx(&mut self, bar_idx: usize, chord_pos: usize, chord_idx: usize) -> usize;
     fn scratch_sound_idx(&mut self, bar_idx: usize, chord_pos: usize) -> usize;
     fn bgm_sound_indices(&mut self, bar_idx: usize) -> Vec<Vec<Option<usize>>>;
@@ -78,15 +72,19 @@ pub trait KeySound {
 
 pub struct ChordKeySound {
     chords: Vec<(ChordRoot, ChordType)>,
-    sources: Vec<String>,
+    sources: Vec<KeySoundSource>,
     source_indices: HashMap<String, usize>,
     notes: usize,
 }
 
 impl ChordKeySound {
     pub fn new(chords: Vec<(ChordRoot, ChordType)>) -> Self {
-        let sources = all_keysounds();
-        let source_indices = sources.iter().cloned().zip(0..).collect();
+        let sources = keysounds();
+        let source_indices = sources
+            .iter()
+            .map(|keysound| keysound.name().to_owned())
+            .zip(0..)
+            .collect();
 
         ChordKeySound {
             chords,
@@ -98,7 +96,7 @@ impl ChordKeySound {
 }
 
 impl KeySound for ChordKeySound {
-    fn sources(&self) -> &[String] {
+    fn sources(&self) -> &[KeySoundSource] {
         &self.sources
     }
 
@@ -115,12 +113,13 @@ impl KeySound for ChordKeySound {
         self.source_indices["s_dr_cymbal"]
     }
 
-    fn bgm_sound_indices(&mut self, _bar_idx: usize) -> Vec<Vec<Option<usize>>> {
+    fn bgm_sound_indices(&mut self, bar_idx: usize) -> Vec<Vec<Option<usize>>> {
         let kick = self.source_indices["s_dr_kick"];
         let snare = self.source_indices["s_dr_snare"];
         let hihat = self.source_indices["s_dr_hihat"];
+        let silence = self.source_indices["s_x_silence"];
 
-        vec![
+        let mut drum_patterns = vec![
             vec![Some(kick), Some(kick), Some(kick), Some(kick)],
             vec![None, Some(snare), None, Some(snare)],
             vec![
@@ -133,7 +132,13 @@ impl KeySound for ChordKeySound {
                 None,
                 Some(hihat),
             ],
-        ]
+        ];
+
+        if bar_idx == 0 {
+            drum_patterns.push(vec![Some(silence)])
+        }
+
+        drum_patterns
     }
 }
 

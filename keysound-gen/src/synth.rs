@@ -18,6 +18,7 @@ fn f32_sample_to_i16(sample: f32) -> i16 {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct Envelope {
     attack: f32,
     decay: f32,
