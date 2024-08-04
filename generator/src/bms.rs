@@ -38,18 +38,6 @@ pub fn chart_to_bms(
     }
 
     for (bar_idx, bar) in chart.bars.iter().enumerate().take(999) {
-        for bgm_lane in keysounds.bgm_sound_indices(bar_idx).into_iter() {
-            write!(buf, "#{:03}01:", bar_idx + 1)?;
-            for sound_idx in bgm_lane {
-                if let Some(sound_idx) = sound_idx {
-                    write!(buf, "{}", to_bms_index(sound_idx))?;
-                } else {
-                    write!(buf, "00")?;
-                }
-            }
-            writeln!(buf)?;
-        }
-
         let mut lanes = vec![vec![None; bar.len()]; LANES];
         for (i, chord) in bar.iter().enumerate() {
             for (j, lane) in chord.lanes.iter().copied().enumerate() {
@@ -81,6 +69,19 @@ pub fn chart_to_bms(
             } else {
                 write!(buf, "00")?;
             }
+        }
+        writeln!(buf)?;
+
+        for bgm_lane in keysounds.bgm_sound_indices(bar_idx).into_iter() {
+            write!(buf, "#{:03}01:", bar_idx + 1)?;
+            for sound_idx in bgm_lane {
+                if let Some(sound_idx) = sound_idx {
+                    write!(buf, "{}", to_bms_index(sound_idx))?;
+                } else {
+                    write!(buf, "00")?;
+                }
+            }
+            writeln!(buf)?;
         }
 
         writeln!(buf)?;

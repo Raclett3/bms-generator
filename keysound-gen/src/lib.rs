@@ -50,7 +50,7 @@ pub struct KeySoundSource {
 }
 
 impl KeySoundSource {
-    fn new(name: String, source: SoundSource) -> Self {
+    pub fn new(name: String, source: SoundSource) -> Self {
         KeySoundSource { name, source }
     }
 
