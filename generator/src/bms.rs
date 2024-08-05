@@ -1,19 +1,10 @@
-use encoding_rs::SHIFT_JIS;
+use bms_writer::BmsWriter;
 
 use crate::generate::{Chart, LANES};
 use crate::keysound::KeySound;
 use std::io::Write;
 
-static LANE_MAPPING: [usize; 7] = [11, 12, 13, 14, 15, 18, 19];
-
-pub fn to_bms_index(idx: usize) -> String {
-    static CHARS: &[u8] = b"0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-    format!(
-        "{}{}",
-        CHARS[(idx + 1) / 36] as char,
-        CHARS[(idx + 1) % 36] as char
-    )
-}
+static LANE_MAPPING: [u8; 8] = [11, 12, 13, 14, 15, 18, 19, 16];
 
 pub fn chart_to_bms(
     mut buf: impl Write,
@@ -24,17 +15,16 @@ pub fn chart_to_bms(
     total: f32,
     keysounds: &mut impl KeySound,
 ) -> std::io::Result<()> {
-    writeln!(buf, "#PLAYER 1")?;
-    buf.write(SHIFT_JIS.encode(&format!("#TITLE {title}\n")).0.as_ref())?;
-    buf.write(SHIFT_JIS.encode(&format!("#GENRE {genre}\n")).0.as_ref())?;
-    buf.write(SHIFT_JIS.encode(&format!("#ARTIST {artist}\n")).0.as_ref())?;
-    writeln!(buf, "#TOTAL {total:.0}")?;
-    writeln!(buf, "#BPM {:.2}", chart.bpm)?;
-    writeln!(buf, "#PLAYLEVEL 1")?;
-    writeln!(buf, "#RANK 3")?;
+    let mut bms = BmsWriter::new();
+
+    bms.set_title(title);
+    bms.set_genre(genre);
+    bms.set_artist(artist);
+    bms.set_total(chart.bpm);
+    bms.set_total(total);
 
     for (i, source) in keysounds.sources().iter().enumerate() {
-        writeln!(buf, "#WAV{} {}.wav", to_bms_index(i), source.name())?;
+        bms.set_keysound(i, source.name());
     }
 
     for (bar_idx, bar) in chart.bars.iter().enumerate().take(999) {
@@ -46,46 +36,25 @@ pub fn chart_to_bms(
         }
 
         for (lane_idx, lane) in lanes.into_iter().enumerate() {
-            write!(buf, "#{:03}{}:", bar_idx + 1, LANE_MAPPING[lane_idx])?;
-
-            for keysound in lane.into_iter() {
-                if let Some(idx) = keysound {
-                    write!(buf, "{}", to_bms_index(idx))?;
-                } else {
-                    write!(buf, "00")?;
-                }
-            }
-            writeln!(buf)?;
+            bms.push_channel(bar_idx, LANE_MAPPING[lane_idx], lane);
         }
 
-        write!(buf, "#{:03}16:", bar_idx + 1)?;
-        for (i, chord) in bar.iter().enumerate() {
-            if chord.scratch {
-                write!(
-                    buf,
-                    "{}",
-                    to_bms_index(keysounds.scratch_sound_idx(bar_idx, i))
-                )?;
-            } else {
-                write!(buf, "00")?;
-            }
-        }
-        writeln!(buf)?;
+        let scratch: Vec<_> = bar
+            .iter()
+            .enumerate()
+            .map(|(i, chord)| {
+                chord
+                    .scratch
+                    .then(|| keysounds.scratch_sound_idx(bar_idx, i))
+            })
+            .collect();
+
+        bms.push_channel(bar_idx, LANE_MAPPING[7], scratch);
 
         for bgm_lane in keysounds.bgm_sound_indices(bar_idx).into_iter() {
-            write!(buf, "#{:03}01:", bar_idx + 1)?;
-            for sound_idx in bgm_lane {
-                if let Some(sound_idx) = sound_idx {
-                    write!(buf, "{}", to_bms_index(sound_idx))?;
-                } else {
-                    write!(buf, "00")?;
-                }
-            }
-            writeln!(buf)?;
+            bms.push_channel(bar_idx, 1, bgm_lane);
         }
-
-        writeln!(buf)?;
     }
 
-    Ok(())
+    bms.write(&mut buf)
 }

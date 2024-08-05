@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-encoding_rs = "0.8.34"
+bms-writer = { version = "0.1.0", path = "../bms-writer" }
 keysound-gen = { path = "../keysound-gen" }
 
 [dev-dependencies]

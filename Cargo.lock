@@ -75,6 +75,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "bms-writer"
+version = "0.1.0"
+dependencies = [
+ "encoding_rs",
+]
+
+[[package]]
 name = "cfg-if"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -140,7 +147,7 @@ name = "generator"
 version = "0.1.0"
 dependencies = [
  "approx",
- "encoding_rs",
+ "bms-writer",
  "keysound-gen",
 ]
 
