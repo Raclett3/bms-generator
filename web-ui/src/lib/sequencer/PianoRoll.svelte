@@ -30,6 +30,7 @@
         false,
     ];
     const height = 15;
+    const C4 = 440 * Math.pow(2.0, -9 / 12);
 
     export let rows: number;
     export let columns: number;
@@ -38,6 +39,15 @@
     let ongoingDrag: Drag | null = null;
     let currentNote: NoteParams | null = null;
     let notes: Record<number, NoteParams> = {};
+
+    const audioCtx = new AudioContext();
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = "sawtooth";
+    osc.connect(gain);
+    gain.gain.value = 0;
+    gain.connect(audioCtx.destination);
+    osc.start();
 
     function dragToNote(drag: Drag | null): NoteParams | null {
         if (drag === null) {
@@ -77,13 +87,25 @@
         };
     }
 
+    function noteOn(y: number) {
+        osc.frequency.value = C4 * Math.pow(2, (rows * 12 - y - 1) / 12);
+        gain.gain.value = 0.2;
+    }
+
+    function noteOff() {
+        gain.gain.value = 0;
+    }
+
     function mousedown(y: number, row: number, column: number) {
         return (x: number) => {
+            const offsetX = x + column * 16;
+            const offsetY = y + row * 12;
+            noteOn(offsetY);
             ongoingDrag = {
-                originX: x + column * 16,
-                originY: y + row * 12,
-                currentX: x + column * 16,
-                currentY: y + row * 12,
+                originX: offsetX,
+                originY: offsetY,
+                currentX: offsetX,
+                currentY: offsetY,
             };
         };
     }
@@ -96,13 +118,15 @@
         const targetRect = event.currentTarget.getBoundingClientRect();
         const offsetX = event.clientX - targetRect.left;
         const offsetY = event.clientY - targetRect.top;
-        const x = Math.floor(offsetX / width);
-        const y = Math.floor(offsetY / height);
-        ongoingDrag.currentX = Math.floor(offsetX / width);
-        ongoingDrag.currentY = Math.floor(offsetY / height);
+        const x = Math.min(Math.floor(offsetX / width), columns * 16 - 1);
+        const y = Math.min(Math.floor(offsetY / height), rows * 12 - 1);
+        noteOn(y);
+        ongoingDrag.currentX = x;
+        ongoingDrag.currentY = y;
     }
 
     function mouseup() {
+        noteOff();
         ongoingDrag = null;
         if (currentNote) {
             addNote(currentNote);
