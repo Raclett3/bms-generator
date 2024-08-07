@@ -1,3 +1,11 @@
+<script context="module" lang="ts">
+    export type MusicalNote = {
+        position: number;
+        note: number;
+        length: number;
+    };
+</script>
+
 <script lang="ts">
     import Note from "./Note.svelte";
     import PianoRollRow from "./PianoRollRow.svelte";
@@ -30,15 +38,16 @@
         false,
     ];
     const height = 15;
-    const C4 = 440 * Math.pow(2.0, -9 / 12);
+    const A4 = 440;
 
     export let rows: number;
     export let columns: number;
     export let width: number;
+    export let notes: MusicalNote[] = [];
 
     let ongoingDrag: Drag | null = null;
     let currentNote: NoteParams | null = null;
-    let notes: Record<number, NoteParams> = {};
+    let notesMap: Record<number, NoteParams> = {};
 
     const audioCtx = new AudioContext();
     const osc = audioCtx.createOscillator();
@@ -48,6 +57,11 @@
     gain.gain.value = 0;
     gain.connect(audioCtx.destination);
     osc.start();
+
+    function yToNote(y: number): number {
+        const offsetFromC4 = rows * 12 - y - 1;
+        return offsetFromC4 - 9;
+    }
 
     function dragToNote(drag: Drag | null): NoteParams | null {
         if (drag === null) {
@@ -70,25 +84,30 @@
     }
 
     $: currentNote = dragToNote(ongoingDrag);
+    $: notes = Object.values(notesMap).map((note) => ({
+        position: note.x,
+        note: yToNote(note.y),
+        length: note.length,
+    }));
 
     const addNote = (() => {
         let generatedNotes = 0;
 
         return (note: NoteParams) => {
-            notes[generatedNotes] = note;
+            notesMap[generatedNotes] = note;
             generatedNotes++;
         };
     })();
 
     function removeNote(key: number) {
         return () => {
-            delete notes[key];
-            notes = notes;
+            delete notesMap[key];
+            notesMap = notesMap;
         };
     }
 
-    function noteOn(y: number) {
-        osc.frequency.value = C4 * Math.pow(2, (rows * 12 - y - 1) / 12);
+    function noteOn(note: number) {
+        osc.frequency.value = A4 * Math.pow(2, note / 12);
         gain.gain.value = 0.2;
     }
 
@@ -100,7 +119,7 @@
         return (x: number) => {
             const offsetX = x + column * 16;
             const offsetY = y + row * 12;
-            noteOn(offsetY);
+            noteOn(yToNote(offsetY));
             ongoingDrag = {
                 originX: offsetX,
                 originY: offsetY,
@@ -120,7 +139,7 @@
         const offsetY = event.clientY - targetRect.top;
         const x = Math.min(Math.floor(offsetX / width), columns * 16 - 1);
         const y = Math.min(Math.floor(offsetY / height), rows * 12 - 1);
-        noteOn(y);
+        noteOn(yToNote(y));
         ongoingDrag.currentX = x;
         ongoingDrag.currentY = y;
     }
@@ -156,7 +175,7 @@
         </div>
     {/each}
 
-    {#each Object.entries(notes) as [key, note] (key)}
+    {#each Object.entries(notesMap) as [key, note] (key)}
         <Note {...note} {width} {height} on:click={removeNote(Number(key))} />
     {/each}
 
