@@ -49,14 +49,46 @@
     let currentNote: NoteParams | null = null;
     let notesMap: Record<number, NoteParams> = {};
 
-    const audioCtx = new AudioContext();
-    const osc = audioCtx.createOscillator();
-    const gain = audioCtx.createGain();
-    osc.type = "sawtooth";
-    osc.connect(gain);
-    gain.gain.value = 0;
-    gain.connect(audioCtx.destination);
-    osc.start();
+    const [noteOn, noteOff] = note();
+
+    function note(): [(note: number) => void, () => void] {
+        let osc: OscillatorNode | null = null;
+        let gain: GainNode | null = null;
+
+        const nodes = (): [OscillatorNode, GainNode] => {
+            if (osc !== null && gain !== null) {
+                return [osc, gain]
+            }
+
+            const audioCtx = new AudioContext();
+
+            gain = audioCtx.createGain();
+            gain.gain.value = 0;
+            gain.connect(audioCtx.destination);
+
+            osc = audioCtx.createOscillator();
+            osc.type = "sawtooth";
+            osc.frequency.value = A4;
+            osc.connect(gain);
+            osc.start();
+
+            return [osc, gain];
+        };
+
+        const noteOn = (note: number) => {
+            const [osc, gain] = nodes();
+
+            osc.frequency.value = A4 * Math.pow(2, note / 12);
+            gain.gain.value = 0.5;
+        };
+
+        const noteOff = () => {
+            const [_, gain] = nodes();
+            gain.gain.value = 0;
+        };
+
+        return [noteOn, noteOff];
+    }
 
     function yToNote(y: number): number {
         const offsetFromC4 = rows * 12 - y - 1;
@@ -104,15 +136,6 @@
             delete notesMap[key];
             notesMap = notesMap;
         };
-    }
-
-    function noteOn(note: number) {
-        osc.frequency.value = A4 * Math.pow(2, note / 12);
-        gain.gain.value = 0.2;
-    }
-
-    function noteOff() {
-        gain.gain.value = 0;
     }
 
     function mousedown(y: number, row: number, column: number) {
