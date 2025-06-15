@@ -20,7 +20,7 @@ pub fn chart_to_bms(
     bms.set_title(title);
     bms.set_genre(genre);
     bms.set_artist(artist);
-    bms.set_total(chart.bpm);
+    bms.set_bpm(chart.bpm);
     bms.set_total(total);
 
     for (i, source) in keysounds.sources().iter().enumerate() {
