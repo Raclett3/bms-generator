@@ -1,8 +1,8 @@
 use clap::{error::ErrorKind, CommandFactory, Parser};
 use generator::{
-    bms::chart_to_bms,
+    bms::{chart_dp_to_bms, chart_to_bms},
     chord::ChordDensity,
-    generate::{generate_chart, ChartParams, NotesParams, Scatter},
+    generate::{generate_chart, generate_chart_dp, ChartParams, NotesParams, Scatter},
     keysound::{ChordKeySound, ChordRoot, ChordType},
 };
 use std::{
@@ -43,6 +43,10 @@ struct Args {
 
     #[arg(long)]
     seed: Option<u64>,
+
+    /// Enabling this option generates a DP chart
+    #[arg(long)]
+    dp: bool,
 }
 
 fn seed_from_time() -> u64 {
@@ -104,37 +108,69 @@ fn main() {
     let seed = args.seed.unwrap_or_else(seed_from_time);
     let chart_params = ChartParams::new(args.bpm, args.bars, seed);
     let notes_params = NotesParams::new(chord_density, args.jack_tolerance, scatter);
-    let chart = generate_chart(&chart_params, &notes_params);
 
     let file = File::create(args.filename).expect("Failed to open file");
-    let notes: usize = chart
-        .bars
-        .iter()
-        .flatten()
-        .map(|chord| chord.lanes.len())
-        .sum();
-    let total = f32::max(1000.0 - 1000000.0 / (1000.0 + notes as f32), 250.0);
-    let duration = 240.0 / chart.bpm * chart.bars.len() as f32;
-    let density = notes as f32 / duration;
-    let genre = format!("密度: {density:.02} notes/s");
-    let artist = format!(
-        "jacks: {:.01}, scatter: {:.01}, seed: {seed:?}",
-        args.jack_tolerance, args.scatter
-    );
 
-    let mut keysounds = ChordKeySound::new(CHORD_PROGRESSION.to_vec());
+    let success = if args.dp {
+        let chart = generate_chart_dp(&chart_params, &notes_params, &notes_params);
+        let notes: usize = chart
+            .bars
+            .iter()
+            .flatten()
+            .flat_map(|chords| chords.iter().map(|chord| chord.lanes.len()))
+            .sum();
+        let total = f32::max(1000.0 - 1000000.0 / (1000.0 + notes as f32), 250.0);
+        let duration = 240.0 / chart.bpm * chart.bars.len() as f32;
+        let density = notes as f32 / duration;
+        let genre = format!("密度: {density:.02} notes/s");
+        let artist = format!(
+            "jacks: {:.01}, scatter: {:.01}, seed: {seed:?}",
+            args.jack_tolerance, args.scatter
+        );
 
-    if chart_to_bms(
-        &file,
-        &chart,
-        "test",
-        &genre,
-        &artist,
-        total,
-        &mut keysounds,
-    )
-    .is_ok()
-    {
+        let mut keysounds = ChordKeySound::new(CHORD_PROGRESSION.to_vec());
+
+        chart_dp_to_bms(
+            &file,
+            &chart,
+            "test",
+            &genre,
+            &artist,
+            total,
+            &mut keysounds,
+        )
+        .is_ok()
+    } else {
+        let chart = generate_chart(&chart_params, &notes_params);
+        let notes: usize = chart
+            .bars
+            .iter()
+            .flatten()
+            .map(|chord| chord.lanes.len())
+            .sum();
+        let total = f32::max(1000.0 - 1000000.0 / (1000.0 + notes as f32), 250.0);
+        let duration = 240.0 / chart.bpm * chart.bars.len() as f32;
+        let density = notes as f32 / duration;
+        let genre = format!("密度: {density:.02} notes/s");
+        let artist = format!(
+            "jacks: {:.01}, scatter: {:.01}, seed: {seed:?}",
+            args.jack_tolerance, args.scatter
+        );
+
+        let mut keysounds = ChordKeySound::new(CHORD_PROGRESSION.to_vec());
+
+        chart_to_bms(
+            &file,
+            &chart,
+            "test",
+            &genre,
+            &artist,
+            total,
+            &mut keysounds,
+        )
+        .is_ok()
+    };
+    if success {
         println!("BMS の生成に成功しました。");
     } else {
         eprintln!("BMS の書き出しに失敗しました。");

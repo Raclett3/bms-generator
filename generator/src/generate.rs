@@ -20,6 +20,7 @@ impl Scatter {
     }
 }
 
+#[derive(Clone, Debug, PartialEq)]
 pub struct ChartParams {
     bpm: f32,
     bars: usize,
@@ -72,6 +73,20 @@ pub struct Chart {
 impl Chart {
     fn new(bpm: f32) -> Self {
         Chart {
+            bpm,
+            bars: Vec::new(),
+        }
+    }
+}
+
+pub struct ChartDp {
+    pub bpm: f32,
+    pub bars: Vec<Vec<[Chord; 2]>>,
+}
+
+impl ChartDp {
+    fn new(bpm: f32) -> Self {
+        ChartDp {
             bpm,
             bars: Vec::new(),
         }
@@ -229,14 +244,14 @@ impl<'a> GenerateContext<'a> {
     }
 }
 
-fn generate_bar(bar_idx: usize, context: &mut GenerateContext) -> Vec<Chord> {
+fn generate_bar(bar_idx: usize, context: &mut GenerateContext, has_scratch: bool) -> Vec<Chord> {
     let chord_density = &context.notes_params.chord_density;
     (0..CHORDS_PER_BAR)
         .map(|i| {
             let count = chord_density.generate_chord_density(i, &mut context.rng);
             let mut randomizer = NoteRandomizer::from_context(context);
             let notes = randomizer.generate(count as usize, &mut context.rng);
-            let chord = Chord::new(notes, bar_idx % 8 == 0 && i == 0);
+            let chord = Chord::new(notes, bar_idx % 8 == 0 && i == 0 && has_scratch);
             context.push_chord(chord.clone());
             chord
         })
@@ -248,7 +263,34 @@ pub fn generate_chart(chart_params: &ChartParams, notes_params: &NotesParams) ->
     let mut chart = Chart::new(chart_params.bpm);
 
     for bar_idx in 0..chart_params.bars {
-        let bar = generate_bar(bar_idx, &mut context);
+        let bar = generate_bar(bar_idx, &mut context, true);
+        chart.bars.push(bar);
+    }
+
+    chart
+}
+
+pub fn generate_chart_dp(
+    chart_params: &ChartParams,
+    notes_params_left: &NotesParams,
+    notes_params_right: &NotesParams,
+) -> ChartDp {
+    let mut context_left = GenerateContext::new(chart_params, notes_params_left);
+    let right_chart_params = ChartParams {
+        seed: !chart_params.seed,
+        ..chart_params.clone()
+    };
+    let mut context_right = GenerateContext::new(&right_chart_params, notes_params_right);
+    let mut chart = ChartDp::new(chart_params.bpm);
+
+    for bar_idx in 0..chart_params.bars {
+        let bar_left = generate_bar(bar_idx, &mut context_left, false);
+        let bar_right = generate_bar(bar_idx, &mut context_right, false);
+        let bar = bar_left
+            .into_iter()
+            .zip(bar_right.into_iter())
+            .map(|(a, b)| [a, b])
+            .collect();
         chart.bars.push(bar);
     }
 

@@ -1,6 +1,6 @@
 use bms_writer::BmsWriter;
 
-use crate::generate::{Chart, LANES};
+use crate::generate::{Chart, ChartDp, LANES};
 use crate::keysound::KeySound;
 use std::io::Write;
 
@@ -50,6 +50,68 @@ pub fn chart_to_bms(
             .collect();
 
         bms.push_channel(bar_idx, LANE_MAPPING[7], scratch);
+
+        for bgm_lane in keysounds.bgm_sound_indices(bar_idx).into_iter() {
+            bms.push_channel(bar_idx, 1, bgm_lane);
+        }
+    }
+
+    bms.write(&mut buf)
+}
+
+pub fn chart_dp_to_bms(
+    mut buf: impl Write,
+    chart: &ChartDp,
+    title: &str,
+    genre: &str,
+    artist: &str,
+    total: f32,
+    keysounds: &mut impl KeySound,
+) -> std::io::Result<()> {
+    let mut bms = BmsWriter::new();
+
+    bms.set_title(title);
+    bms.set_genre(genre);
+    bms.set_artist(artist);
+    bms.set_bpm(chart.bpm);
+    bms.set_total(total);
+
+    for (i, source) in keysounds.sources().iter().enumerate() {
+        bms.set_keysound(i, source.name());
+    }
+
+    for (bar_idx, bar) in chart.bars.iter().enumerate().take(999) {
+        let mut sides = [
+            vec![vec![None; bar.len()]; LANES],
+            vec![vec![None; bar.len()]; LANES],
+        ];
+        for (i, chords) in bar.iter().enumerate() {
+            for (side, chord) in chords.iter().enumerate() {
+                for (j, lane) in chord.lanes.iter().copied().enumerate() {
+                    sides[side][lane as usize][i] = Some(keysounds.key_sound_idx(bar_idx, i, j));
+                }
+            }
+        }
+
+        for (side, lanes) in sides.into_iter().enumerate() {
+            for (lane_idx, lane) in lanes.into_iter().enumerate() {
+                bms.push_channel(bar_idx, LANE_MAPPING[lane_idx] + side as u8 * 10, lane);
+            }
+        }
+
+        for side in 0..2 {
+            let scratch: Vec<_> = bar
+                .iter()
+                .enumerate()
+                .map(|(i, chords)| {
+                    chords[side]
+                        .scratch
+                        .then(|| keysounds.scratch_sound_idx(bar_idx, i))
+                })
+                .collect();
+
+            bms.push_channel(bar_idx, LANE_MAPPING[7] + side as u8 * 10, scratch);
+        }
 
         for bgm_lane in keysounds.bgm_sound_indices(bar_idx).into_iter() {
             bms.push_channel(bar_idx, 1, bgm_lane);
