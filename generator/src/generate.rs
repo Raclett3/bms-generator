@@ -21,30 +21,29 @@ impl Scatter {
 }
 
 pub struct ChartParams {
-    chord_density: ChordDensity,
     bpm: f32,
     bars: usize,
-    jack_tolerance: f32,
-    scatter: Scatter,
     seed: u64,
 }
 
 impl ChartParams {
-    pub fn new(
-        chord_density: ChordDensity,
-        bpm: f32,
-        bars: usize,
-        jack_tolerance: f32,
-        scatter: Scatter,
-        seed: u64,
-    ) -> Self {
-        ChartParams {
+    pub fn new(bpm: f32, bars: usize, seed: u64) -> Self {
+        ChartParams { bpm, bars, seed }
+    }
+}
+
+pub struct NotesParams {
+    chord_density: ChordDensity,
+    jack_tolerance: f32,
+    scatter: Scatter,
+}
+
+impl NotesParams {
+    pub fn new(chord_density: ChordDensity, jack_tolerance: f32, scatter: Scatter) -> Self {
+        NotesParams {
             chord_density,
-            bpm,
-            bars,
             jack_tolerance,
             scatter,
-            seed,
         }
     }
 }
@@ -98,7 +97,7 @@ impl NoteRandomizer {
     }
 
     fn from_context(context: &GenerateContext) -> Self {
-        let jack_tolerance = context.params.jack_tolerance;
+        let jack_tolerance = context.notes_params.jack_tolerance;
         let max_jacks = jack_tolerance.ceil() as usize;
         let reroll_chance = (1.0 - jack_tolerance.fract()) % 1.0;
 
@@ -182,26 +181,26 @@ struct GenerateContext<'a> {
     rng: RNG,
     ongoing_jacks: Vec<usize>,
     bias: Vec<f32>,
-    params: &'a ChartParams,
+    notes_params: &'a NotesParams,
 }
 
 impl<'a> GenerateContext<'a> {
-    fn new(seed: u64, params: &'a ChartParams) -> Self {
+    fn new(chart_params: &ChartParams, notes_params: &'a NotesParams) -> Self {
         GenerateContext {
             generated_chords: Vec::new(),
-            rng: RNG::new_u64(seed),
+            rng: RNG::new_u64(chart_params.seed),
             ongoing_jacks: vec![0; LANES],
             bias: vec![0.0; LANES],
-            params,
+            notes_params,
         }
     }
 
     fn push_chord(&mut self, chord: Chord) {
         for (i, bias) in self.bias.iter_mut().enumerate() {
-            *bias = *bias * self.params.scatter.decay;
+            *bias = *bias * self.notes_params.scatter.decay;
 
             if chord.contains(i as u8) {
-                *bias += self.params.scatter.strength;
+                *bias += self.notes_params.scatter.strength;
             }
         }
 
@@ -220,7 +219,7 @@ impl<'a> GenerateContext<'a> {
         self.bias
             .iter()
             .map(|&bias| {
-                if self.params.scatter.inverted {
+                if self.notes_params.scatter.inverted {
                     1.0 + bias
                 } else {
                     2.0f32.powf(-(bias - min_bias))
@@ -230,11 +229,8 @@ impl<'a> GenerateContext<'a> {
     }
 }
 
-fn generate_bar(
-    bar_idx: usize,
-    chord_density: &ChordDensity,
-    context: &mut GenerateContext,
-) -> Vec<Chord> {
+fn generate_bar(bar_idx: usize, context: &mut GenerateContext) -> Vec<Chord> {
+    let chord_density = &context.notes_params.chord_density;
     (0..CHORDS_PER_BAR)
         .map(|i| {
             let count = chord_density.generate_chord_density(i, &mut context.rng);
@@ -247,12 +243,12 @@ fn generate_bar(
         .collect()
 }
 
-pub fn generate_chart(params: &ChartParams) -> Chart {
-    let mut context = GenerateContext::new(params.seed, params);
-    let mut chart = Chart::new(params.bpm);
+pub fn generate_chart(chart_params: &ChartParams, notes_params: &NotesParams) -> Chart {
+    let mut context = GenerateContext::new(chart_params, notes_params);
+    let mut chart = Chart::new(chart_params.bpm);
 
-    for bar_idx in 0..params.bars {
-        let bar = generate_bar(bar_idx, &params.chord_density, &mut context);
+    for bar_idx in 0..chart_params.bars {
+        let bar = generate_bar(bar_idx, &mut context);
         chart.bars.push(bar);
     }
 
@@ -264,22 +260,20 @@ mod test {
     use super::{generate_chart, ChartParams, GenerateContext, NoteRandomizer};
     use crate::{
         chord::ChordDensity,
-        generate::{Chord, Scatter, CHORDS_PER_BAR, LANES},
+        generate::{Chord, NotesParams, Scatter, CHORDS_PER_BAR, LANES},
     };
     use approx::assert_relative_eq;
 
     #[test]
     fn test_bias() {
-        let params = ChartParams {
-            chord_density: ChordDensity::new(vec![vec![300]]),
-            bpm: 222.22,
-            bars: 64,
-            jack_tolerance: 0.0,
-            scatter: Scatter::new(1.0, 0.5, false),
-            seed: 199024,
-        };
+        let chart_params = ChartParams::new(222.22, 64, 199024);
+        let notes_params = NotesParams::new(
+            ChordDensity::new(vec![vec![300]]),
+            0.0,
+            Scatter::new(1.0, 0.5, false),
+        );
 
-        let mut context = GenerateContext::new(123, &params);
+        let mut context = GenerateContext::new(&chart_params, &notes_params);
         context.push_chord(Chord::new(vec![0, 2, 4, 6], false));
         assert_relative_eq!(
             context.bias.as_slice(),
@@ -304,17 +298,15 @@ mod test {
 
     #[test]
     fn test_bias_to_weight() {
-        let mut params = ChartParams {
-            chord_density: ChordDensity::new(vec![vec![300]]),
-            bpm: 255.0,
-            bars: 128,
-            jack_tolerance: 0.0,
-            scatter: Scatter::new(10.0, 1.0, false),
-            seed: 199024,
-        };
+        let chart_params = ChartParams::new(255.0, 128, 199024);
+        let mut notes_params = NotesParams::new(
+            ChordDensity::new(vec![vec![300]]),
+            0.0,
+            Scatter::new(1.0, 0.5, false),
+        );
 
         {
-            let mut context = GenerateContext::new(123, &params);
+            let mut context = GenerateContext::new(&chart_params, &notes_params);
             context.bias = vec![0.0, 1.0, 2.0, 3.0, 2.0, 1.0, 0.0];
             assert_relative_eq!(
                 context.bias_to_weight().as_slice(),
@@ -322,10 +314,10 @@ mod test {
             );
         }
 
-        params.scatter = Scatter::new(10.0, 1.0, true);
+        notes_params.scatter = Scatter::new(10.0, 1.0, true);
 
         {
-            let mut context = GenerateContext::new(123, &params);
+            let mut context = GenerateContext::new(&chart_params, &notes_params);
             context.bias = vec![0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0];
             assert_eq!(
                 context.bias_to_weight().as_slice(),
@@ -336,16 +328,14 @@ mod test {
 
     #[test]
     fn test_note_randomizer() {
-        let params = ChartParams {
-            chord_density: ChordDensity::new(vec![vec![300]]),
-            bpm: 222.22,
-            bars: 64,
-            jack_tolerance: 0.0,
-            scatter: Scatter::new(0.0, 0.0, false),
-            seed: 199024,
-        };
+        let chart_params = ChartParams::new(222.22, 64, 199024);
+        let notes_params = NotesParams::new(
+            ChordDensity::new(vec![vec![300]]),
+            0.0,
+            Scatter::new(0.0, 0.0, false),
+        );
 
-        let mut context = GenerateContext::new(123, &params);
+        let mut context = GenerateContext::new(&chart_params, &notes_params);
         context.push_chord(Chord::new(vec![0, 2, 4, 6], false));
         let mut randomizer = NoteRandomizer::from_context(&context);
 
@@ -372,18 +362,16 @@ mod test {
 
     #[test]
     fn test_generate_chart() {
-        let params = ChartParams {
-            chord_density: ChordDensity::new(vec![vec![300]]),
-            bpm: 222.22,
-            bars: 64,
-            jack_tolerance: 0.0,
-            scatter: Scatter::new(0.0, 0.0, false),
-            seed: 199024,
-        };
+        let chart_params = ChartParams::new(222.22, 64, 199024);
+        let notes_params = NotesParams::new(
+            ChordDensity::new(vec![vec![300]]),
+            0.0,
+            Scatter::new(0.0, 0.0, false),
+        );
 
-        let chart = generate_chart(&params);
+        let chart = generate_chart(&chart_params, &notes_params);
 
-        assert_relative_eq!(params.bpm, chart.bpm);
+        assert_relative_eq!(chart_params.bpm, chart.bpm);
 
         for bar in chart.bars.iter() {
             assert_eq!(bar.len(), CHORDS_PER_BAR);
@@ -395,16 +383,13 @@ mod test {
             assert!(window[0].lanes.iter().all(|&x| !window[1].contains(x)));
         }
 
-        let params = ChartParams {
-            chord_density: ChordDensity::new(vec![vec![300]]),
-            bpm: 222.22,
-            bars: 64,
-            jack_tolerance: 1.0,
-            scatter: Scatter::new(0.0, 0.0, false),
-            seed: 199024,
-        };
+        let notes_params = NotesParams::new(
+            ChordDensity::new(vec![vec![300]]),
+            1.0,
+            Scatter::new(0.0, 0.0, false),
+        );
 
-        let chart = generate_chart(&params);
+        let chart = generate_chart(&chart_params, &notes_params);
 
         let flatten_chart: Vec<_> = chart.bars.into_iter().flatten().collect();
 

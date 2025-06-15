@@ -2,7 +2,7 @@ use clap::{error::ErrorKind, CommandFactory, Parser};
 use generator::{
     bms::chart_to_bms,
     chord::ChordDensity,
-    generate::{generate_chart, ChartParams, Scatter},
+    generate::{generate_chart, ChartParams, NotesParams, Scatter},
     keysound::{ChordKeySound, ChordRoot, ChordType},
 };
 use std::{
@@ -102,15 +102,9 @@ fn main() {
     );
 
     let seed = args.seed.unwrap_or_else(seed_from_time);
-    let params = ChartParams::new(
-        chord_density,
-        args.bpm,
-        args.bars,
-        args.jack_tolerance,
-        scatter,
-        seed,
-    );
-    let chart = generate_chart(&params);
+    let chart_params = ChartParams::new(args.bpm, args.bars, seed);
+    let notes_params = NotesParams::new(chord_density, args.jack_tolerance, scatter);
+    let chart = generate_chart(&chart_params, &notes_params);
 
     let file = File::create(args.filename).expect("Failed to open file");
     let notes: usize = chart

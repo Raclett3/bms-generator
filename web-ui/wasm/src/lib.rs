@@ -1,11 +1,11 @@
+use base64::prelude::*;
 use generator::{
     bms::chart_to_bms,
     chord::ChordDensity,
-    generate::{generate_chart, ChartParams, Scatter},
+    generate::{generate_chart, ChartParams, NotesParams, Scatter},
     keysound::{ChordKeySound, ChordRoot, ChordType},
 };
 use wasm_bindgen::prelude::*;
-use base64::prelude::*;
 
 static CHORD_PROGRESSION: [(ChordRoot, ChordType); 8] = [
     (ChordRoot::D, ChordType::Major),
@@ -71,15 +71,9 @@ pub fn generate_bms(params: &BmsParams) -> Option<Vec<u8>> {
         params.scatter_strength < 0.0,
     );
 
-    let chart_params = ChartParams::new(
-        chord_density,
-        params.bpm,
-        params.bars,
-        params.jack_tolerance,
-        scatter,
-        params.seed,
-    );
-    let chart = generate_chart(&chart_params);
+    let chart_params = ChartParams::new(params.bpm, params.bars, params.seed);
+    let notes_params = NotesParams::new(chord_density, params.jack_tolerance, scatter);
+    let chart = generate_chart(&chart_params, &notes_params);
 
     let notes: usize = chart
         .bars
