@@ -1,16 +1,19 @@
 <script lang="ts">
     import { base } from "$app/paths";
-    import { BmsParams, data_uri, generate_bms } from "$wasm";
+    import { JsChartParams, JsNotesParams, data_uri, generate_bms } from "$wasm";
+    import ChordDensityInput from "./ChordDensityInput.svelte";
 
     let bars = 16;
     let bpm = 150;
     let jackTolerance = 0;
-    let chordDensity = [0, 0, 0, 0, 200];
+    let chordDensity = [
+        [0, 0, 0, 0, 200],
+        [0, 0, 0, 0, 200],
+    ];
     let scatter = 0;
     let scatterDecayRate = 0.5;
     let seedString = "";
-
-    const chordLabels = ["1分", "2分", "4分", "8分", "16分"];
+    let dp = false;
 
     function getSeed() {
         if (seedString === "") {
@@ -34,20 +37,38 @@
     }
 
     function onClick() {
-        const chordDensityArray = BigUint64Array.from(chordDensity.map(BigInt));
-        const seed = getSeed();
-        const params = new BmsParams(
-            bars,
-            bpm,
-            "Auto Generated",
-            jackTolerance,
-            chordDensityArray,
-            scatter,
-            scatterDecayRate,
-            seed,
-        );
-        const resultBms = generate_bms(params);
-        params.free();
+        let resultBms: Uint8Array | undefined;
+
+        if (dp) {
+            const chordDensityArrayLeft = BigUint64Array.from(chordDensity[0].map(BigInt));
+            const chordDensityArrayRight = BigUint64Array.from(chordDensity[1].map(BigInt));
+            const seed = getSeed();
+            const chartParams = new JsChartParams(bars, bpm, "Auto Generated", seed);
+            const notesParamsLeft = new JsNotesParams(
+                jackTolerance,
+                chordDensityArrayLeft,
+                scatter,
+                scatterDecayRate,
+            );
+            const notesParamsRight = new JsNotesParams(
+                jackTolerance,
+                chordDensityArrayRight,
+                scatter,
+                scatterDecayRate,
+            );
+            resultBms = generate_bms(chartParams, [notesParamsLeft, notesParamsRight]);
+        } else {
+            const chordDensityArray = BigUint64Array.from(chordDensity[0].map(BigInt));
+            const seed = getSeed();
+            const chartParams = new JsChartParams(bars, bpm, "Auto Generated", seed);
+            const notesParams = new JsNotesParams(
+                jackTolerance,
+                chordDensityArray,
+                scatter,
+                scatterDecayRate,
+            );
+            resultBms = generate_bms(chartParams, [notesParams]);
+        }
 
         if (resultBms === undefined) {
             alert("BMS の生成に失敗しました。");
@@ -92,19 +113,25 @@
                 <input type="text" bind:value={bpm} />
             </label>
         </div>
+        <label>
+            <span>DP</span>
+            <input type="checkbox" bind:checked={dp} />
+        </label>
     </div>
-    <div class="form-group">
-        <h2>譜面密度</h2>
-        <div class="form-flex">
-            {#each chordDensity as density, i}
-                <label>
-                    <p>{chordLabels[i]}</p>
-                    <input type="test" bind:value={density} />
-                    <div class="unit">%</div>
-                </label>
-            {/each}
+    {#if dp}
+        <div class="form-groups">
+            <div class="form-group">
+                <ChordDensityInput bind:chordDensity={chordDensity[0]} />
+            </div>
+            <div class="form-group">
+                <ChordDensityInput bind:chordDensity={chordDensity[1]} />
+            </div>
         </div>
-    </div>
+    {:else}
+        <div class="form-group">
+            <ChordDensityInput bind:chordDensity={chordDensity[0]} />
+        </div>
+    {/if}
     <div class="form-group">
         <details>
             <summary><h2>詳細設定</h2></summary>
@@ -154,7 +181,7 @@
         color: rgba(0, 0, 0, 0.8);
     }
 
-    input {
+    input[type="text"] {
         box-sizing: border-box;
         padding: 5px;
         width: 100%;
@@ -175,6 +202,15 @@
         border-radius: 3px;
         color: #ffffff;
         background-color: #0088ff;
+    }
+
+    .form-groups {
+        display: flex;
+        gap: 10px;
+    }
+
+    .form-groups > * {
+        flex-grow: 1;
     }
 
     .form-group {
