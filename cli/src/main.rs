@@ -47,6 +47,10 @@ struct Args {
     /// Enabling this option generates a DP chart
     #[arg(long)]
     dp: bool,
+
+    /// Title of the BMS file
+    #[arg(long, default_value_t = format!("test"))]
+    title: String,
 }
 
 fn seed_from_time() -> u64 {
@@ -133,7 +137,7 @@ fn main() {
         chart_dp_to_bms(
             &file,
             &chart,
-            "test",
+            &args.title,
             &genre,
             &artist,
             total,
@@ -162,7 +166,7 @@ fn main() {
         chart_to_bms(
             &file,
             &chart,
-            "test",
+            &args.title,
             &genre,
             &artist,
             total,
